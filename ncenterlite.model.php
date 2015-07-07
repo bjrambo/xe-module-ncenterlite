@@ -2,22 +2,27 @@
 class ncenterliteModel extends ncenterlite
 {
 	var $config;
+	var $notify_args;
+	var $notify_arguments;
 
 	function getConfig()
 	{
 		if(!$this->config)
 		{
-			$oModuleModel = &getModel('module');
+			$oModuleModel = getModel('module');
 			$config = $oModuleModel->getModuleConfig('ncenterlite');
 			if(!$config->use) $config->use = 'Y';
+			if(!$config->display_use) $config->display_use = 'Y';
 
+			if(!$config->mention_names) $config->mention_names = 'nick_name';
 			if(!$config->message_notify) $config->message_notify = 'Y';
 			if(!$config->mention_format && !is_array($config->mention_format)) $config->mention_format = array('respect');
 			if(!is_array($config->mention_format)) $config->mention_format = explode('|@|', $config->mention_format);
 			if(!$config->document_notify) $config->document_notify = 'direct-comment';
 			if(!$config->hide_module_srls) $config->hide_module_srls = array();
 			if(!is_array($config->hide_module_srls)) $config->hide_module_srls = explode('|@|', $config->hide_module_srls);
-
+			if(!$config->document_read) $config->document_read = 'N';
+			if(!$config->voted_format) $config->voted_format = 'N';
 			if(!$config->skin) $config->skin = 'default';
 			if(!$config->colorset) $config->colorset = 'black';
 
@@ -27,16 +32,103 @@ class ncenterliteModel extends ncenterlite
 		return $this->config;
 	}
 
+	function getNotifyTypebySrl($notify_srl='')
+	{
+		$args = new stdClass();
+		$args->notify_type_id = $notify_srl;
+
+		$output = executeQuery('ncenterlite.getNotifyType',$args);
+
+		return $output->data;
+	}
+
+	function getNotifyTypeString($notify_srl='',$notify_args)
+	{
+		$this->notify_args = $notify_args;
+
+		$output = $this->getNotifyTypebySrl($notify_srl);
+
+		$this->notify_arguments = explode("|",$output->data->notify_type_args);
+		$string = preg_replace_callback("/%([^%]*)%/",array($this, 'replaceNotifyType'),$output->data->notify_string);
+
+		return $string;
+	}
+
+	function replaceNotifyType($match)
+	{
+		//if replace string is not at arguments, return
+		if(!in_array($match[1],$this->notify_arguments))
+		{
+			return $match[0];
+		}
+
+		//if replace string is not set, return
+		if(!isset($this->notify_args->{$match[1]}))
+		{
+			return $match[0];
+		}
+
+		return $this->notify_args->{$match[1]};
+	}
+
+	function isNotifyTypeExistsbySrl($notify_srl='')
+	{
+		$args = new stdClass();
+		$args->notify_type_srl = $notify_srl;
+
+		$output = executeQuery('ncenterlite.getNotifyType',$args);
+
+		return isset($output->data->notify_type_id);
+	}
+
+	function insertNotifyType($args)
+	{
+		return executeQuery('ncenterlite.insertNotifyType',$args);
+	}
+
+	function getMemberConfig($member_srl=null)
+	{
+		if(!$member_srl)
+		{
+			$logged_info = Context::get('logged_info');
+			$member_srl = $logged_info->member_srl;
+		}
+
+		$args = new stdClass();
+		$args->member_srl = $member_srl;
+		$output = executeQuery('ncenterlite.getUserConfig', $args);
+		if(!$output->data) return $output->data;
+
+		return $output;
+	}
+
+	function getAllMemberConfig()
+	{
+		$output = executeQueryArray('ncenterlite.getAllUserConfig');
+
+		return $output;
+	}
+
 	function getMyNotifyList($member_srl=null, $page=1, $readed='N')
 	{
 		global $lang;
 
-		$output = $this->_getMyNotifyList($member_srl, $page, $readed);
-		$oMemberModel = &getModel('member');
+		$act = Context::get('act');
+		if($act=='dispNcenterliteNotifyList')
+		{
+			$output = $this->getMyDispNotifyList($member_srl);
+		}
+		else
+		{
+			$output = $this->_getMyNotifyList($member_srl, $page, $readed);
+		}
+
+		$oMemberModel = getModel('member');
 		$list = $output->data;
 
 		foreach($list as $k => $v)
 		{
+
 			$target_member = $v->target_nick_name;
 
 			switch($v->type)
@@ -59,14 +151,49 @@ class ncenterliteModel extends ncenterlite
 					$str = sprintf($lang->ncenterlite_commented, $target_member, $type, $v->target_summary);
 					//$str = sprintf('<strong>%s</strong>님이 회원님의 %s에 <strong>"%s" 댓글</strong>을 남겼습니다.', $target_member, $type, $v->target_summary);
 				break;
+				case 'A':
+					$str = sprintf('<strong>%s</strong>님이 <strong>"%s"</strong>게시판에 <strong>"%s"</strong>댓글을 남겼습니다. ', $target_member, $v->target_browser, $v->target_summary);
+					//$str = sprintf('<strong>%s</strong>님이 회원님의 %s에 <strong>"%s" 댓글</strong>을 남겼습니다.', $target_member, $type, $v->target_summary);
+				break;
 				case 'M':
 					$str = sprintf($lang->ncenterlite_mentioned, $target_member,  $v->target_summary, $type);
 					//$str = sprintf('<strong>%s</strong>님이 <strong>"%s" %s</strong>에서 회원님을 언급하였습니다.', $target_member,  $v->target_summary, $type);
 				break;
 				// 메시지. 쪽지
 				case 'E':
-					$str = sprintf($lang->ncenterlite_message_string, $v->target_summary);
+					if(version_compare(__XE_VERSION__, '1.7.4', '>='))
+					{
+						$str = sprintf('<strong>%s</strong>님께서 <strong>%s</strong> 메세지를 보내셨습니다.',$target_member, $v->target_summary);
+					}
+					else
+					{
+						$str = sprintf($lang->ncenterlite_message_string, $v->target_summary);
+					}
 				break;
+				case 'T':
+					$str = sprintf('<strong>%s</strong>님! 스킨 테스트 알림을 완료했습니다.', $target_member);
+				break;
+				case 'P':
+					$str = sprintf('<strong>%s</strong>님이 <strong>"%s"</strong>게시판에 <strong>%s</strong>글을 남겼습니다.', $target_member, $v->target_browser, $v->target_summary);
+				break;
+				case 'S':
+					if($v->target_browser)
+					{
+						$str = sprintf('<strong>%s</strong>님이 <strong>"%s"</strong>게시판에 <strong>"%s"</strong>글을 남겼습니다.', $target_member, $v->target_browser, $v->target_summary);
+					}
+					else
+					{
+						$str = sprintf('<strong>%s</strong>님이 <strong>"%s"</strong>글을 남겼습니다.', $target_member, $v->target_summary);
+					}
+				break;
+				case 'V':
+					$str = sprintf('<strong>%s</strong>님이 <strong>"%s"</strong>글을 추천하였습니다.', $target_member, $v->target_summary);
+				break;
+			}
+
+			if($v->type=='U')
+			{
+				$str = $this->getNotifyTypeString($v->notify_type,unserialize($v->target_body));
 			}
 
 			$v->text = $str;
@@ -90,7 +217,7 @@ class ncenterliteModel extends ncenterlite
 		$logged_info = Context::get('logged_info');
 		if(!$logged_info) return new Object(-1, 'msg_not_permitted');
 
-		$oMemberModel = &getModel('member');
+		$oMemberModel = getModel('member');
 		$memberConfig = $oMemberModel->getMemberConfig();
 		$page = Context::get('page');
 
@@ -127,6 +254,49 @@ class ncenterliteModel extends ncenterlite
 		return $output;
 	}
 
+	function getMyDispNotifyList($member_srl)
+	{
+
+		$logged_info = Context::get('logged_info');
+
+		$member_srl = $logged_info->member_srl;
+
+		$args = new stdClass();
+		$args->page = Context::get('page');
+		$args->list_count = '20';
+		$args->page_count = '10';
+		$args->member_srl = $member_srl;
+		$output = executeQueryArray('ncenterlite.getDispNotifyList', $args);
+		if(!$output->data) $output->data = array();
+
+		return $output;
+	}
+
+	function getNcenterliteAdminList($member_srl)
+	{
+		$logged_info = Context::get('logged_info');
+
+		$member_srl = $logged_info->member_srl;
+
+		$args = new stdClass();
+		$args->page = Context::get('page');
+		$args->list_count = '20';
+		$args->page_count = '10';
+		$output = executeQueryArray('ncenterlite.getAdminNotifyList', $args);
+		if(!$output->data) $output->data = array();
+
+		return $output;
+	}
+
+	function getMemberAdmins()
+	{
+		$args->is_admin = 'Y';
+		$output = executeQueryArray('ncenterlite.getMemberAdmins', $args);
+		if(!$output->data) $output->data = array();
+
+		return $output;
+	}
+
 	function _getNewCount($member_srl=null)
 	{
 		if(!$member_srl)
@@ -146,7 +316,7 @@ class ncenterliteModel extends ncenterlite
 
 	function getColorsetList()
 	{
-		$oModuleModel = &getModel('module');
+		$oModuleModel = getModel('module');
 		$skin = Context::get('skin');
 
 		$skin_info = $oModuleModel->loadSkinInfo($this->module_path, $skin);
