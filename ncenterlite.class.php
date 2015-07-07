@@ -30,6 +30,8 @@ class ncenterlite extends ModuleObject
 	var $_TYPE_VOTED = 'V'; // 추천글 안내 알림
 	var $_TYPE_TEST = 'T';
 	var $_TYPE_CUSTOM = 'U'; //Updated alert(uses type table)
+	var $_TYPE_MEMBER_D = 'H';
+	var $_TYPE_INSTAGRAM = 'I';
 
 	var $triggers = array(
 		array('comment.insertComment', 'ncenterlite', 'controller', 'triggerAfterInsertComment', 'after'),
@@ -43,6 +45,7 @@ class ncenterlite extends ModuleObject
 		array('communication.sendMessage', 'ncenterlite', 'controller', 'triggerAfterSendMessage', 'after'),
 		array('document.updateVotedCount', 'ncenterlite', 'controller', 'triggerAfterVotedupdate', 'after'),
 		array('moduleHandler.init', 'ncenterlite', 'controller', 'triggerAddMemberMenu', 'after'),
+		array('member.deleteMember', 'ncenterlite', 'controller', 'triggerBeforeDeleteMember', 'before')
 	);
 
 	function _isDisable()

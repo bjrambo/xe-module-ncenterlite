@@ -111,6 +111,7 @@ class ncenterliteModel extends ncenterlite
 
 	function getMyNotifyList($member_srl=null, $page=1, $readed='N')
 	{
+
 		global $lang;
 
 		$act = Context::get('act');
@@ -128,7 +129,6 @@ class ncenterliteModel extends ncenterlite
 
 		foreach($list as $k => $v)
 		{
-
 			$target_member = $v->target_nick_name;
 
 			switch($v->type)
@@ -142,6 +142,9 @@ class ncenterliteModel extends ncenterlite
 				// 메시지. 쪽지
 				case 'E':
 					$type = $lang->ncenterlite_type_message; //$type = '쪽지';
+				break;
+				case 'I':
+					$type = '인스타그램';
 				break;
 			}
 
@@ -188,6 +191,12 @@ class ncenterliteModel extends ncenterlite
 				break;
 				case 'V':
 					$str = sprintf('<strong>%s</strong>님이 <strong>"%s"</strong>글을 추천하였습니다.', $target_member, $v->target_summary);
+				break;
+				case 'H':
+					$str = sprintf('<strong>%s</strong>님이 회원탈퇴하였습니다.', $target_member);
+				break;
+				case 'I':
+					$str = sprintf('<strong>%s</strong>님의 새로운 인스타그램입니다."%s"', $target_member, $v->target_summary);
 				break;
 			}
 
@@ -306,7 +315,7 @@ class ncenterliteModel extends ncenterlite
 
 			$member_srl = $logged_info->member_srl;
 		}
-
+		$args = new stdClass();
 		$args->member_srl = $member_srl;
 		$output = executeQuery('ncenterlite.getNotifyNewCount', $args);
 		if(!$output->data) return 0;
