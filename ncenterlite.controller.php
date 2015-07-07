@@ -59,6 +59,41 @@ class ncenterliteController extends ncenterlite
 		return new Object();
 	}
 
+	function triggerBeforeDeleteMember($obj)
+	{
+		$member_srl = $obj->member_srl;
+		if(!$member_srl)
+		{
+			return new Object();
+		}
+
+		$oMemberModel = getModel('member');
+		$member_info = $oMemberModel->getMemberInfoByMemberSrl($member_srl);
+
+		$oNcenterliteModel = getModel('ncenterlite');
+		$admin_list = $oNcenterliteModel->getMemberAdmins();
+		$admins_list = $admin_list->data;
+
+		foreach ($admins_list as $val)
+		{
+			$args = new stdClass();
+			$args->member_srl = $val->member_srl;
+			$args->srl = $member_info->member_srl;
+			$args->target_p_srl = $member_info->member_srl;
+			$args->target_srl = $member_info->member_srl;
+			$args->type = $this->_TYPE_MEMBER_D;
+			$args->target_type = $this->_TYPE_MEMBER_D;
+			$args->target_url = getNotEncodedFullUrl('', 'module', 'admin', 'act', 'dispMemberAdminList');
+			$args->target_summary = '회원탈퇴';
+			$args->target_nick_name = $obj->nick_name;
+			$args->target_email_address = $obj->email_address;
+			$args->regdate = date('YmdHis');
+			$args->target_browser = '회원탈퇴';
+			$args->notify = $this->_getNotifyId($args);
+			$output = $this->_insertNotify($args, $is_anonymous);
+		}
+	}
+
 	function triggerAfterInsertDocument(&$obj)
 	{
 		$oModuleModel = getModel('module');
@@ -927,7 +962,7 @@ class ncenterliteController extends ncenterlite
 			$args->target_user_id = $anonymous_name;
 			$args->target_email_address = $anonymous_name;
 		}
-		else if($logged_info)
+		else if($logged_info && $args->type != 'I')
 		{
 			// 익명 노티가 아닐 때 로그인 세션의 회원정보 넣기
 			$args->target_member_srl = $logged_info->member_srl;
