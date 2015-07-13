@@ -34,6 +34,11 @@ class ncenterliteController extends ncenterlite
 			$outputs = executeQuery('ncenterlite.updateUserConfig', $args);
 		}
 
+		if(!$outputs->toBool())
+		{
+			return $output;
+		}
+
 		$this->setMessage('success_updated');
 
 		if(!in_array(Context::getRequestMethod(),array('XMLRPC','JSON')))
@@ -46,9 +51,6 @@ class ncenterliteController extends ncenterlite
 
 	function triggerAfterDeleteMember($obj)
 	{
-		$oNcenterliteModel = getModel('ncenterlite');
-		$config = $oNcenterliteModel->getConfig();
-
 		$member_srl = $obj->member_srl;
 		if(!$member_srl) return new Object();
 
@@ -112,9 +114,7 @@ class ncenterliteController extends ncenterlite
 		$mention_targets = $this->_getMentionTarget($content);
 		if(!$mention_targets || !count($mention_targets)) return new Object();
 
-		$oDocumentModel = getModel('document');
 		$document_srl = $obj->document_srl;
-		$oDocument = $oDocumentModel->getDocument($document_srl);
 		$module_info = $oModuleModel->getModuleInfoByDocumentSrl($document_srl);
 
 		$is_anonymous = $this->_isAnonymous($this->_TYPE_DOCUMENT, $obj);
